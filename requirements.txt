@@ -5,3 +5,4 @@ triton
 matplotlib
 numpy
 pandas
+pytest
