@@ -3,12 +3,16 @@ timing & GFLOP/s comparison for butterfly vs. dense matmul
 """
 
 import math, os, csv, time
+import sys
 import torch
 import triton
 import triton.language as tl
 import pandas as pd
 import numpy as np
 import logging
+
+# Add parent directory to Python path to import modules from root
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -53,7 +57,7 @@ SHAPES = [
 ]
 DTYPE = torch.float32
 DEVICE = "cuda"
-OUTPUT_DIR = "results"
+OUTPUT_DIR = "results/benchmarks"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Global storage for metrics

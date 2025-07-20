@@ -8,9 +8,13 @@ import time
 import logging
 import math
 import os
+import sys
 import csv
 import pandas as pd
 from collections import defaultdict
+
+# Add parent directory to Python path to import modules from root
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import your implementations
 try:
@@ -295,8 +299,8 @@ def compare_implementations(B=4, F=64, L=1024):
 
 def save_results_to_csv(all_results, scaling_results=None):
     """Save profiling results to CSV files"""
-    # Ensure results directory exists
-    os.makedirs("results", exist_ok=True)
+    # Ensure results/profiles directory exists
+    os.makedirs("results/profiles", exist_ok=True)
     
     # Convert main results to DataFrame
     rows = []
@@ -324,7 +328,7 @@ def save_results_to_csv(all_results, scaling_results=None):
     # Save main results
     if rows:
         df_main = pd.DataFrame(rows)
-        main_csv_path = os.path.join("results", "butterfly_memory_profiling.csv")
+        main_csv_path = os.path.join("results/profiles", "butterfly_memory_profiling.csv")
         df_main.to_csv(main_csv_path, index=False)
         log.info(f"Main results saved to: {main_csv_path}")
     
@@ -347,7 +351,7 @@ def save_results_to_csv(all_results, scaling_results=None):
         
         if scaling_rows:
             df_scaling = pd.DataFrame(scaling_rows)
-            scaling_csv_path = os.path.join("results", "butterfly_scaling_analysis.csv")
+            scaling_csv_path = os.path.join("results/profiles", "butterfly_scaling_analysis.csv")
             df_scaling.to_csv(scaling_csv_path, index=False)
             log.info(f"Scaling results saved to: {scaling_csv_path}")
 

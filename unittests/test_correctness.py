@@ -3,7 +3,13 @@ unit tests for butterfly matrix multiplication correctness
 """
 
 import math, pytest, torch
-from correctness_harness import check_case
+import sys
+import os
+
+# Add parent directory to Python path to import modules from root
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from testing.correctness_harness import check_case
 from reference_impl import butterfly_mm_ref
 from triton_kernel import butterfly_mm_triton
 
