@@ -12,15 +12,40 @@ This project implements butterfly matrix multiplication, which decomposes matrix
 - **Profiling tools** for performance analysis and optimization
 - **Benchmarking suite** for performance comparison
 
+## PyTorch Module Wrapper: ButterflyLayer
+
+A minimal PyTorch `nn.Module` wrapper is provided for the Triton butterfly matrix multiplication kernel. This allows you to use the butterfly operation as a drop-in layer in PyTorch models.
+
+**File:** `butterfly_module.py`
+
+**Example usage:**
+
+```python
+from butterfly_module import ButterflyLayer
+import torch
+
+B, F, L = 8, 16, 32  # Batch, features, length (L must be power of 2)
+x = torch.randn(B, F, L, device='cuda')
+
+layer = ButterflyLayer(F, L).cuda()
+y = layer(x)
+print(y.shape)  # (B, F, L)
+```
+
+- The layer exposes learnable butterfly parameters (`W_par`).
+- For autograd support, ensure the kernel or reference backward is used.
+
 ## Project Structure
 
 ```
 butterfly_matrix_kernel/
 ├── triton_kernel.py              # Main Triton GPU kernel implementation
 ├── reference_impl.py             # Reference torch implementation for validation
+├── butterfly_module.py           # PyTorch nn.Module wrapper for butterfly kernel
 ├── unittests/                    # Pytest-based unit tests
 │   ├── __init__.py
-│   └── test_correctness.py       # Unit tests using correctness_harness
+│   ├── test_correctness.py       # Unit tests for correctness
+│   └── test_numwarp_tuning.py    # Unit tests for num_warps tuning
 ├── testing/                      # Standalone testing framework
 │   └── correctness_harness.py    # Comprehensive test suite
 ├── profiling/                    # Performance profiling tools
@@ -29,11 +54,14 @@ butterfly_matrix_kernel/
 │   └── visualization.py          # SQLite visualization for Nsight Systems
 ├── benchmarking/                 
 │   └── performance_bench.py      # Performance comparison benchmarks
+├── optimization/                 # Hyperparameter tuning scripts
+│   └── numwarp_tuning.py         # Script for tuning num_warps
 ├── results/                      
 │   ├── profiles/                 # Profiling results
 │   ├── benchmarks/               # Benchmark results
-│   └── plots/                    # Generated plots
-└── scripts/                      # wrapper scripts
+│   ├── plots/                    # Generated plots
+│   └── optimization/             # Tuning results
+└── scripts/                      # Wrapper scripts
     ├── run_profiling.py          # Run all profiling tools
     └── run_benchmarks.py         # Run performance benchmarks
 ```
@@ -50,7 +78,7 @@ butterfly_matrix_kernel/
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/kiaghods/butterfly_matrix_kernel.git
 cd butterfly_matrix_kernel
 
 # Create and activate virtual environment with uv
@@ -75,7 +103,7 @@ pytest unittests/
 pytest unittests/test_correctness.py
 
 # Run with verbose output
-pytest unittests/test_correctness.py -v
+pytest unittests/ -v
 ```
 
 The pytest tests use the same `check_case` function from `correctness_harness.py` and tests various input configurations.
@@ -177,4 +205,14 @@ The `profiling/visualization.py` script provides:
 - Kernel duration distribution plots
 - Timeline visualization
 - Performance tier analysis
+
+## Optimization
+
+Butterfly kernel performance is optimized by tuning key parameters:
+- **BLOCK_BF** (rows per Triton program)
+- **num_warps** (CUDA warps per kernel)
+
+The script `optimization/numwarp_tuning.py` benchmarks different `num_warps` values (4, 8, 16) for a range of problem sizes and records the best-performing configuration. Empirical results show that for sequence lengths L ≤ 2048, `BLOCK_BF = 64` consistently yields the best performance. The optimal `num_warps` value depends on the problem size and GPU, typically 4 or 8 for the given constraints. 
+
+## Pipelining 
 
