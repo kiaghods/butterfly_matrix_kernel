@@ -55,6 +55,8 @@ butterfly_matrix_kernel/
 ├── benchmarking/                 
 │   └── performance_bench.py      # Performance comparison benchmarks
 ├── optimization/                 # Hyperparameter tuning scripts
+│   ├── pipelined_kernel.py       # one-step pipelining
+│   ├── fused_kernel.py           # two-stage kernel for L=8
 │   └── numwarp_tuning.py         # Script for tuning num_warps
 ├── results/                      
 │   ├── profiles/                 # Profiling results
@@ -70,7 +72,7 @@ butterfly_matrix_kernel/
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.10+ (verified working on Python 3.12)
 - uv (Python package manager) - [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
 - NVIDIA GPU with compute capability 7.0+
 
@@ -164,6 +166,12 @@ python scripts/run_profiling.py --tool memory
 python scripts/run_profiling.py --tool nsight
 ```
 
+### Kernel Timeline Visualization
+
+The following timeline plot shows the execution of the butterfly kernel, generated using Nsight Systems and the provided visualization script:
+
+![Kernel Timeline](results/plots/kernel_timeline.png)
+
 ## Benchmarking
 
 ### Performance Benchmarks
@@ -206,7 +214,9 @@ The `profiling/visualization.py` script provides:
 - Timeline visualization
 - Performance tier analysis
 
-## Optimization
+## Optimizations (some attempts)
+
+### Parameter Tuning
 
 Butterfly kernel performance is optimized by tuning key parameters:
 - **BLOCK_BF** (rows per Triton program)
@@ -214,5 +224,35 @@ Butterfly kernel performance is optimized by tuning key parameters:
 
 The script `optimization/numwarp_tuning.py` benchmarks different `num_warps` values (4, 8, 16) for a range of problem sizes and records the best-performing configuration. Empirical results show that for sequence lengths L ≤ 2048, `BLOCK_BF = 64` consistently yields the best performance. The optimal `num_warps` value depends on the problem size and GPU, typically 4 or 8 for the given constraints. 
 
-## Pipelining 
+### Pipelining
+
+A "pipelined" butterfly kernel was implemented in `optimization/pipelined_kernel.py`. This kernel prefetches the next pair's data and coefficients while computing/storing the current pair, overlapping memory loads with computation.
+
+- The pipelined kernel is functionally correct (outputs match the baseline).
+- However, it is consistently *slower* than the baseline kernel on modern GPUs (see `results/optimization/pipelined_vs_baseline_results.csv`).
+- This matches the findings in the literature: modern GPU hardware already overlaps loads and compute within a warp, so manual software pipelining does not provide a speedup and can even reduce performance due to increased register pressure and instruction count.
+
+### Kernel Fusion (minimal working ex.)
+
+This project includes a highly optimized fused kernel for applying two butterfly stages in a single Triton kernel, specifically for the case where L=8. 
+
+*Quick Explanation:*
+Kernel fusion refers to combining multiple computational steps (that would normally require separate GPU kernel launches) into a single GPU kernel. 
+
+*Our Case - The Two-Stage Butterfly Approach:*
+In the butterfly matrix multiplication algorithm, each stage applies a set of 2x2 butterfly transformations to pairs of elements. For L=8, there are three stages in total, but this kernel fuses the first two stages into a single Triton kernel. This means both stages are computed in one pass, keeping all intermediate results in fast registers rather than writing to and reading from global memory between stages.
+
+Fusing multiple butterfly stages is challenging because the pairing pattern changes at each stage, and the data dependencies become more complex as L increases. Writing a generic fused kernel for arbitrary L would require intricate indexing logic and potentially large register usage, which was difficult to write given the time constraint.
+
+To sidestep these challenges and maximize performance, I hard-coded the butterfly pairings and update logic for L=8. All butterfly operations for both stages are fully unrolled and implemented using only Triton primitives. This approach is not general, but it is extremely efficient and numerically exact for this small, fixed size.
+
+The fused kernel is implemented in [`optimization/fused_kernel.py`](optimization/fused_kernel.py).
+
+### Benchmark Result
+```
+[B=4 F=64 L=8] Baseline: 0.06 ms | Fused: 0.04 ms | Max diff: 0.00e+00
+```
+
+*Usage:*
+This approach is ideal for small L (e.g., L=8), where kernel launch overhead is (relatively) significant compared to computation. For larger L, a more general or pipelined approach is preferable.
 

@@ -10,11 +10,6 @@ import math
 import os
 import csv
 
-# ==============================================================================
-# Production Butterfly Kernel (BLOCK_BF=64, num_warps tuning)
-# This is the main kernel for deployment and benchmarking.
-# ==============================================================================
-
 @triton.jit
 def butterfly_stage_kernel_4_warps(
         x_ptr, w_ptr,
