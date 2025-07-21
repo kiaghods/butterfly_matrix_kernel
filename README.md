@@ -256,3 +256,19 @@ The fused kernel is implemented in [`optimization/fused_kernel.py`](optimization
 *Usage:*
 This approach is ideal for small L (e.g., L=8), where kernel launch overhead is (relatively) significant compared to computation. For larger L, a more general or pipelined approach is preferable.
 
+## Last Minute Addendum: Discrete FFT using Butterfly Matrix Multiplication
+
+This repository includes a minimal, high-performance implementation of the discrete 1D complex Fast Fourier Transform (FFT) in `triton_fft_kernel.py`. This FFT is designed for power-of-two lengths and leverages the same butterfly structure as the learned butterfly matrix multiplication kernels in this project. Notably this implementation is *correct* but not optimized much at all (ie it is much ~30-100x slower than default torch fft).
+
+### How It Works
+- The FFT is computed as a sequence of "butterfly" stages, each corresponding to a layer of the butterfly matrix. At each stage, pairs of elements are combined using complex twiddle factors, following the classic Cooley-Tukey radix-2 algorithm.
+- A custom Triton kernel (`fft_butterfly_stage_kernel`) is used to perform each butterfly stage efficiently on the GPU. This kernel handles both the butterfly addition/subtraction and the complex multiplication with the twiddle factors in a single pass.
+- The input is first permuted into bit-reversed order, so that each stage operates on perfectly strided data, just like the learned butterfly stack.
+
+### Relation to Butterfly Matmul
+- The FFT can be viewed as a special case of butterfly matrix multiplication, where the butterfly factors (twiddles) are fixed and determined by the roots of unity, rather than learned or arbitrary.
+- The same Triton programming techniques used for fast butterfly matmul are directly applicable to the FFT, with the main difference being the use of complex arithmetic and stage-specific twiddle factors.
+
+### Usage
+See `triton_fft_kernel.py` for a quick self-test and benchmarking code.
+
